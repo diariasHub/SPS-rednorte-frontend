@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Save, User, Activity, FileText, CheckCircle } from 'lucide-react';
+import axios from 'axios';
 
 interface AtencionClinicaViewProps {
   encounterId: string | null;
@@ -23,42 +24,26 @@ export function AtencionClinicaView({ encounterId, appointmentId, patientId, pat
         
         try {
         // 1. GUARDAR LA NOTA CLÍNICA (Motivo y Anamnesis)
-        const noteResponse = await fetch('/api/v1/clinical-notes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-            encounterId: encounterId,
-            patientId: patientId, // <-- Asegúrate de pasar esto como prop a la vista
-            title: "Evolución Médica", // Ajusta estos nombres de campos...
-            text: `Motivo de Consulta: ${motivoConsulta}\nAnamnesis: ${anamnesis}`, // ...a lo que espere tu ClinicalNoteDTO
-            authorId: "Practitioner/123" // Opcional, si tu DTO requiere el ID del médico
-            })
-        });
-
-        if (!noteResponse.ok) throw new Error("Error al guardar la nota clínica");
-
-        // 2. GUARDAR EL DIAGNÓSTICO (Condition)
-        const conditionResponse = await fetch('/api/v1/conditions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        await axios.post('/api/v1/clinical-notes', {
             encounterId: encounterId,
             patientId: patientId,
-            clinicalStatus: "active", // Ajusta a tu ConditionDTO
-            code: diagnostico // El texto del diagnóstico
-            })
+            title: "Evolución Médica",
+            text: `Motivo de Consulta: ${motivoConsulta}\nAnamnesis: ${anamnesis}`,
+            authorId: "Practitioner/123"
         });
 
-        if (!conditionResponse.ok) throw new Error("Error al guardar el diagnóstico");
-
-        // 3. ACTUALIZAR ESTADO DE LA CITA (Lo que ya te funciona)
-        const statusResponse = await fetch(`/agendas/appointments/${appointmentId}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'fulfilled' })
+        // 2. GUARDAR EL DIAGNÓSTICO (Condition)
+        await axios.post('/api/v1/conditions', {
+            encounterId: encounterId,
+            patientId: patientId,
+            clinicalStatus: "active",
+            code: diagnostico
         });
 
-        if (!statusResponse.ok) throw new Error("Error al actualizar la cita");
+        // 3. ACTUALIZAR ESTADO DE LA CITA
+        await axios.patch(`/agendas/appointments/${appointmentId}/status`, {
+            status: 'fulfilled'
+        });
 
         alert(`Atención finalizada y datos guardados exitosamente.`);
         onVolver(); 

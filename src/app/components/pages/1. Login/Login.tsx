@@ -1,12 +1,25 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import axios from 'axios';
+import { mapBackendRole } from '../../../../utils/roleMapper';
 
-// Credenciales simuladas alineadas con DevDataInitializer.java del backend
-const DEMO_USERS: Record<string, { password: string, role: 'MEDICO' | 'PACIENTE' | 'ADMIN'}> = {
-  'medico.demo': { password: 'Demo1234!', role: 'MEDICO' },
-  'paciente.demo': { password: 'Demo1234!', role: 'PACIENTE' },
-  'admin.demo': { password: 'Demo1234!', role: 'ADMIN' },
-};
+// Decodificador base64 de JWT
+function decodeToken(token: string) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Error decoding JWT token', e);
+    return null;
+  }
+}
 
 // Formatea RUN mientras el usuario escribe: "123456789" → "12.345.678-9"
 function formatRUN(raw: string): string {
@@ -42,8 +55,7 @@ function validateRUN(formatted: string): boolean {
 }
 
 interface LoginViewProps {
-  // Ponemos los roles en mayúsculas para que coincidan con el resto de la app
-  onLoginSuccess: (role: 'ADMIN' | 'ADMINISTRATIVO' | 'ENFERMERO' | 'MEDICO' | 'PACIENTE') => void;
+  onLoginSuccess: (role: 'ADMIN' | 'ADMINISTRATIVO' | 'ENFERMERO' | 'MEDICO' | 'PACIENTE', token: string) => void;
   onBack?: () => void;
 }
 
@@ -75,7 +87,7 @@ export function LoginView({ onLoginSuccess, onBack }: LoginViewProps) {
     if (runError) setRunError('');
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setRunError('');
     setPassError('');
 
@@ -108,23 +120,43 @@ export function LoginView({ onLoginSuccess, onBack }: LoginViewProps) {
     // Si es formato RUN limpiamos los puntos, si es usuario normal lo dejamos igual
     const cleanRun = isRunFormat ? run.replace(/\./g, '').toLowerCase() : run;
 
-    // Buscamos si el usuario existe en nuestra lista de DEMO
-    const foundUser = DEMO_USERS[cleanRun];
-
-    if (!foundUser || password !== foundUser.password) {
-      setPassError('Usuario o contraseña incorrectos');
-      return;
-    }
-
     setLoading(true);
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // Petición real al backend mediante la API Gateway
+      const response = await axios.post('/api/v1/auth/login', {
+        username: cleanRun,
+        password: password,
+      });
+
+      const data = response.data;
+
+      if (data.status === 'MFA_REQUIRED') {
+        setPassError('MFA requerido. Este portal actualmente solo admite cuentas con MFA deshabilitado en modo dev.');
+        setLoading(false);
+        return;
+      }
+
+      if (!data.accessToken) {
+        throw new Error('No se recibió el token de acceso');
+      }
+
+      const decoded = decodeToken(data.accessToken);
+      const roles: string[] = decoded?.roles || [];
+      const rawRole = roles[0] ? roles[0].replace('ROLE_', '') : '';
+      const mappedRole = mapBackendRole(rawRole);
+
       setSuccess(true);
       setTimeout(() => {
-        onLoginSuccess(foundUser.role); // Mandamos el rol correcto (medico o paciente)
+        onLoginSuccess(mappedRole, data.accessToken);
       }, 1200);
-    }, 900);
+    } catch (err: any) {
+      console.error('Error de autenticación:', err);
+      const msg = err.response?.data?.message || err.message || 'Error al conectar con el servidor de autenticación';
+      setPassError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, next?: () => void) => {

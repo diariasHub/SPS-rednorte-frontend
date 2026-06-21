@@ -36,14 +36,15 @@ export default function App() {
   const [activePatientRut, setActivePatientRut] = useState<string | null>(null);
   const [activePatientAge, setActivePatientAge] = useState<string | null>(null);
   // 3. Manejadores de Autenticación
-  const handleLoginSuccess = (backendRole: string, receivedToken?: string) => {
-    const finalToken = receivedToken || 'simulated-jwt-token';
+  const handleLoginSuccess = (backendRole: string, receivedToken: string) => {
+    const finalToken = receivedToken;
     
     let normalizedRole = backendRole.toUpperCase();
     if (normalizedRole === 'MEDICO_URGENCIA' || normalizedRole === 'MEDICO') normalizedRole = 'MEDICO';
     else if (normalizedRole === 'ENFERMERA_URGENCIA' || normalizedRole === 'ENFERMERO') normalizedRole = 'ENFERMERO';
     else if (normalizedRole.includes('ADMINISTRATIVO')) normalizedRole = 'ADMINISTRATIVO';
     else if (normalizedRole === 'ADMIN') normalizedRole = 'ADMIN';
+    else if (normalizedRole === 'ROLE_PATIENT' || normalizedRole === 'PATIENT' || normalizedRole === 'PACIENTE') normalizedRole = 'PACIENTE';
 
     setToken(finalToken);
     setUserRole(normalizedRole);

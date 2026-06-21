@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Badge } from '../../ui/badge';
+import axios from 'axios';
 
 // Interfaz del DTO que entregará tu API Gateway
 interface AppointmentDTO {
@@ -35,8 +36,8 @@ export function DashboardDoctor({ onIrAAtencion }: DashboardDoctorProps) {
   const fetchAgenda = async () => {
     setLoadingAgenda(true);
     try {
-      const response = await fetch(`/agendas/appointments/doctor/${drId}?date=${selectedDate}`);
-      const data = await response.json();
+      const response = await axios.get(`/agendas/appointments/doctor/${drId}?date=${selectedDate}`);
+      const data = response.data;
       
       // LOG DE DIAGNÓSTICO: Esto nos dirá la verdad
       console.log("Respuesta del Backend (ms-agenda):", data); 
@@ -44,10 +45,11 @@ export function DashboardDoctor({ onIrAAtencion }: DashboardDoctorProps) {
       setMyAgenda(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error(error);
+      setErrorAgenda("Error al cargar la agenda médica");
     } finally {
       setLoadingAgenda(false);
     }
-};
+  };
 
   useEffect(() => {
     fetchAgenda();
@@ -56,13 +58,9 @@ export function DashboardDoctor({ onIrAAtencion }: DashboardDoctorProps) {
   // Modificar el estado de la cita
   const handleCambiarEstado = async (appointmentId: string, nuevoEstado: string) => {
     try {
-      const response = await fetch(`/agendas/appointments/${appointmentId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nuevoEstado })
+      await axios.patch(`/agendas/appointments/${appointmentId}/status`, {
+        status: nuevoEstado
       });
-
-      if (!response.ok) throw new Error("Error al actualizar la cita");
       
       // Actualización optimista: Cambiamos el estado localmente para no hacer al usuario esperar
       setMyAgenda(prev => prev.map(cita => 
@@ -77,19 +75,12 @@ export function DashboardDoctor({ onIrAAtencion }: DashboardDoctorProps) {
   };
 
   // Iniciar Encuentro (Appointment -> Encounter)
-const iniciarAtencion = async (appointmentId: string, patientId: string, patientName: string, patientRut: string, patientAge: string) => {
+  const iniciarAtencion = async (appointmentId: string, patientId: string, patientName: string, patientRut: string, patientAge: string) => {
     setProcesandoCitaId(appointmentId);
     try {
-      const response = await fetch(`/api/v1/encounters/start/${appointmentId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (!response.ok) throw new Error("Error al iniciar el encuentro clínico");
-
-      const encounterData = await response.json();
-      // 👇 2. Pásale los 3 IDs a la vista principal
-    onIrAAtencion(encounterData.id, appointmentId, patientId, patientName, patientRut, patientAge);      
+      const response = await axios.post(`/api/v1/encounters/start/${appointmentId}`);
+      const encounterData = response.data;
+      onIrAAtencion(encounterData.id, appointmentId, patientId, patientName, patientRut, patientAge);      
     } catch (error) {
       console.error(error);
       alert("Hubo un problema al crear el Encounter en FHIR.");

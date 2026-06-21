@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, Layers, Activity, Heart, Clipboard } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Badge } from '../../ui/badge';
+import axios from 'axios';
 
 // Interfaces alineadas estrictamente con los DTOs de Java
 interface EncounterDTO {
@@ -74,17 +75,14 @@ export function HistoryView({ patientId = "p-196655077" }: HistoryViewProps) {
   const API_GATEWAY_URL = '/api/v1/history/patient';
   useEffect(() => {
     setLoading(true);
-    fetch(`${API_GATEWAY_URL}/${patientId}`)
+    axios.get<ClinicalHistoryDTO>(`${API_GATEWAY_URL}/${patientId}`)
       .then((res) => {
-        if (!res.ok) throw new Error('Error en la respuesta del API Gateway');
-        return res.json();
-      })
-      .then((data: ClinicalHistoryDTO) => {
-        setHistory(data);
+        setHistory(res.data);
         setLoading(false);
       })
       .catch((err) => {
-        setError(err.message);
+        console.error('Error fetching clinical history:', err);
+        setError(err.response?.data?.message || err.message || 'Error al conectar con el API Gateway');
         setLoading(false);
       });
   }, [patientId]);
